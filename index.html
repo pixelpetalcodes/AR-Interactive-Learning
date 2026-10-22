@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>VR Interactive Learning Room | Meta Quest 3S & WebXR</title>
+  <meta name="description" content="An interactive, WebXR-powered virtual reality educational classroom featuring Solar System, Human Anatomy, and Science Laboratory modules with real-time quizzes.">
+  
+  <!-- A-Frame VR Framework (v1.6.0 Stable WebXR) -->
+  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+
+  <style>
+    /* -------------------------------------------------------------
+       2D Desktop HUD & Overlay Styles (Complementing WebXR Experience)
+       ------------------------------------------------------------- */
+    :root {
+      --primary: #38bdf8;
+      --primary-dark: #0284c7;
+      --accent: #f59e0b;
+      --success: #10b981;
+      --danger: #ef4444;
+      --bg-dark: rgba(15, 23, 42, 0.88);
+      --border-glow: rgba(56, 189, 248, 0.35);
+      --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: var(--font-stack);
+      background-color: #030712;
+      color: #f8fafc;
+    }
+
+    /* Floating 2D HUD for Desktop Mode & Quick Status */
+    #desktop-hud {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      z-index: 9999;
+      background: var(--bg-dark);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-glow);
+      border-radius: 12px;
+      padding: 14px 20px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 15px rgba(56, 189, 248, 0.2);
+      max-width: 380px;
+      pointer-events: auto;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    #desktop-hud.minimized {
+      transform: translateY(-80%);
+      opacity: 0.3;
+    }
+
+    #desktop-hud.minimized:hover {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .hud-title {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .hud-badge {
+      background: #0369a1;
+      color: #38bdf8;
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      font-weight: 800;
+    }
+
+    .hud-stats {
+      display: flex;
+      gap: 16px;
+      margin: 8px 0;
+      padding: 8px 10px;
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 8px;
+    }
+
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stat-value {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .hud-instructions {
+      font-size: 11px;
+      line-height: 1.45;
+      color: #cbd5e1;
+      margin-top: 6px;
+    }
+
+    .hud-instructions kbd {
+      background: #1e293b;
+      border: 1px solid #475569;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: 10px;
+      font-family: monospace;
+      color: #f1f5f9;
+    }
+
+    /* Quest 3S Guide Floating Tooltip */
+    #quest-helper {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      z-index: 9999;
+      background: var(--bg-dark);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 12px;
+      color: #fde68a;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #quest-helper span.icon {
+      font-size: 18px;
+    }
+
+    /* Hide 2D HUD when in immersive VR automatically to prevent distraction */
+    .a-fullscreen #desktop-hud,
+    .a-fullscreen #quest-helper {
+      opacity: 0.2;
+    }
+    .a-fullscreen #desktop-hud:hover,
+    .a-fullscreen #quest-helper:hover {
+      opacity: 1;
+    }
+
+    /* Custom VR loading spinner / indicator */
+    #vr-loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10000;
+      color: #38bdf8;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      pointer-events: none;
+      transition: opacity 0.5s ease;
+    }
+
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 3px solid rgba(56, 189, 248, 0.2);
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+
+  <script>
+    /* =========================================================================
+       AUDIO SYNTHESIZER (Web Audio API - 100% Offline, Zero Asset Load Failures)
+       ========================================================================= */
+    const SoundFX = {
+      ctx: null,
+      muted: false,
+      init() {
+        if (!this.ctx) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioContextClass) {
+            this.ctx = new AudioContextClass();
+          }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      },
+      playHover() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(540, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.04);
+          gain.gain.setValueAtTime(0.04, this.ctx.currentTime);
+          gain.gain.linearRampToValueAtTime(0.001, this.ctx.currentTime + 0.05);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.05);
+        } catch (e) {}
+      },
+      playClick() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(420, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(260, this.ctx.currentTime + 0.08);
+          gain.gain.setValueAtTime(0.09, this.ctx.currentTime);
+          gain.gain.linearRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.08);
+        } catch (e) {}
+      },
+      playCorrect() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+          notes.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            const start = this.ctx.currentTime + (idx * 0.07);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, start);
+            gain.gain.setValueAtTime(0.09, start);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + 0.25);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(start);
+            osc.stop(start + 0.26);
+          });
+        } catch (e) {}
+      },
+      playWrong() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+          osc.frequency.linearRampToValueAtTime(120, this.ctx.currentTime + 0.22);
+          gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.22);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.23);
+        } catch (e) {}
+      },
+      playSwitch() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(320, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(640, this.ctx.currentTime + 0.15);
+          gain.gain.setValueAtTime(0.06, this.ctx.currentTime);
+          gain.gain.linearRampToValueAtTime(0.001, this.ctx.currentTime + 0.16);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.16);
+        } catch (e) {}
+      }
+    };
+
+    /* =========================================================================
+       EDUCATIONAL CURRICULUM & DATA STORE
+       ========================================================================= */
+    const Curriculum = {
+      solarSystem: {
+        title: "Module A: Solar System",
+        description: "Explore the Sun and eight major planets. Select any celestial body to view physical dimensions, planetary order, and scientific discoveries.",
+        objects: [
+          { id: "sun", name: "The Sun", order: "Center of Solar System", diameter: "1,392,700 km", fact: "The Sun contains 99.86% of all mass in our solar system. Its core temperature reaches ~15 million deg Celsius.", color: "#f59e0b" },
+          { id: "mercury", name: "Mercury", order: "1st Planet", diameter: "4,879 km", fact: "Mercury is the smallest planet and closest to the Sun. It experiences temperature swings from 430 deg C to -180 deg C.", color: "#9ca3af" },
+          { id: "venus", name: "Venus", order: "2nd Planet", diameter: "12,104 km", fact: "Venus is the hottest planet due to runaway greenhouse effect (465 deg C). It rotates backwards compared to most planets.", color: "#eab308" },
+          { id: "earth", name: "Earth", order: "3rd Planet", diameter: "12,742 km", fact: "The only known planet harboring life. Liquid water covers ~71% of its surface, shielded by an active magnetic field.", color: "#38bdf8" },
+          { id: "mars", name: "Mars", order: "4th Planet", diameter: "6,779 km", fact: "The Red Planet gets its tint from iron oxide (rust). Home to Olympus Mons, the largest volcano in the Solar System.", color: "#ef4444" },
+          { id: "jupiter", name: "Jupiter", order: "5th Planet", diameter: "139,820 km", fact: "A colossal gas giant more than twice as massive as all other planets combined. Famous for the Great Red Spot storm.", color: "#d97706" },
+          { id: "saturn", name: "Saturn", order: "6th Planet", diameter: "116,460 km", fact: "Known for spectacular rings composed of billions of chunks of water ice, rock dust, and carbonaceous particles.", color: "#facc15" },
+          { id: "uranus", name: "Uranus", order: "7th Planet", diameter: "50,724 km", fact: "An ice giant rotating on a tilted axis of 98 degrees—it essentially rolls on its side as it orbits the Sun.", color: "#22d3ee" },
+          { id: "neptune", name: "Neptune", order: "8th Planet", diameter: "49,244 km", fact: "The most distant major planet, characterized by supersonic methane winds reaching speeds exceeding 2,100 km/h.", color: "#3b82f6" }
+        ],
+        quiz: [
+          {
+            q: "Which planet is known as the 'Red Planet' due to iron oxide on its surface?",
+            options: ["Venus", "Mars", "Jupiter", "Mercury"],
+            answer: 1,
+            explanation: "Mars is called the Red Planet because iron oxide (rust) across its rocky surface gives it a distinct reddish hue."
+          },
+          {
+            q: "Which is the largest planet in our Solar System?",
+            options: ["Saturn", "Neptune", "Jupiter", "Earth"],
+            answer: 2,
+            explanation: "Jupiter is the largest planet—so vast that more than 1,300 Earths could fit inside its volume!"
+          },
+          {
+            q: "What are Saturn's prominent rings primarily made of?",
+            options: ["Solid diamond slabs", "Water ice, dust & rock", "Liquid nitrogen clouds", "Pure golden metal"],
+            answer: 1,
+            explanation: "Saturn's rings consist of billions of particles of water ice and silicate dust ranging from pebble to mountain size."
+          }
+        ]
+      },
+
+      humanBody: {
+        title: "Module B: Human Body",
+        description: "Examine key anatomical organs. Inspect non-graphic 3D representations to discover biological systems, vital functions, and health facts.",
+        objects: [
+          { id: "brain", name: "Human Brain", system: "Central Nervous System", function: "Command Center & Cognition", fact: "Contains approximately 86 billion neurons. Consumes 20% of the body's total energy despite being 2% of body weight.", color: "#f472b6" },
+          { id: "heart", name: "Heart", system: "Circulatory System", function: "Muscular Blood Pump", fact: "Beats approximately 100,000 times each day, pumping ~7,500 liters of oxygenated blood through thousands of miles of vessels.", color: "#ef4444" },
+          { id: "lungs", name: "Lungs (Respiratory)", system: "Respiratory System", function: "Oxygen / Carbon Dioxide Gas Exchange", fact: "Contains around 300 to 500 million microscopic alveoli sacs, providing an immense surface area roughly the size of a tennis court.", color: "#38bdf8" },
+          { id: "stomach", name: "Stomach", system: "Gastrointestinal System", function: "Chemical & Mechanical Digestion", fact: "Produces hydrochloric acid (pH 1.5 - 2.0) and enzymes to break down food. Secretes protective mucus to prevent auto-digestion.", color: "#fb923c" }
+        ],
+        quiz: [
+          {
+            q: "Which organ generates electrical impulses to continuously pump blood throughout the body?",
+            options: ["Lungs", "Stomach", "Heart", "Liver"],
+            answer: 2,
+            explanation: "The heart's specialized sinoatrial node generates rhythmic electrical pulses that trigger muscular contractions to pump blood."
+          },
+          {
+            q: "What is the primary function of the respiratory alveoli inside the lungs?",
+            options: ["Pumping digestive acid", "Exchanging Oxygen and Carbon Dioxide", "Filtering red blood cells", "Storing bile"],
+            answer: 1,
+            explanation: "Alveoli are tiny elastic air sacs where inhaled oxygen diffuses into the bloodstream and carbon dioxide is exhaled."
+          },
+          {
+            q: "Roughly how many neurons reside within the adult human brain?",
+            options: ["100 million", "1 billion", "86 billion", "10 trillion"],
+            answer: 2,
+            explanation: "Neuroscience estimates the adult human brain contains about 86 billion neurons forming hundreds of trillions of synaptic connections."
+          }
+        ]
+      },
+
+      scienceLab: {
+        title: "Module C: Science Laboratory",
+        description: "Engage with core scientific laboratory apparatus. Learn appropriate safety practices, instrument purposes, and standard scientific procedures.",
+        objects: [
+          { id: "microscope", name: "Optical Microscope", purpose: "Specimen Magnification (40x - 1000x)", safeUse: "Always hold with two hands (arm and base). Start focusing using the lowest power objective to avoid cracking glass slides.", color: "#0284c7" },
+          { id: "beaker", name: "Laboratory Beaker & Flask", purpose: "Liquid Mixing & Volume Measurement", safeUse: "Always wear safety goggles. Never heat cracked glassware. Use tongs or heat-resistant gloves when handling hot vessels.", color: "#10b981" },
+          { id: "magnifier", name: "Convex Magnifying Glass", purpose: "Optical Surface Inspection & Refraction", safeUse: "Handle lenses by the rim. Never use magnifying lenses to focus direct sunlight onto flammable surfaces or look at the sun.", color: "#f59e0b" },
+          { id: "burner", name: "Bunsen Burner", purpose: "Controlled Gas Heat Source", safeUse: "Always light match before turning on gas valve. Use the yellow safety flame when idle, switch to blue roaring flame for heating.", color: "#8b5cf6" }
+        ],
+        quiz: [
+          {
+            q: "What should you always do before turning on the gas valve of a Bunsen burner?",
+            options: ["Light the match or striker first", "Turn the gas on maximum", "Remove safety goggles", "Blow into the gas tube"],
+            answer: 0,
+            explanation: "Always have your ignition source ready and lit right above the chimney before turning on gas to prevent dangerous gas accumulation."
+          },
+          {
+            q: "What is the primary rule for safely carrying an optical compound microscope?",
+            options: ["Carry by the optical eyepiece", "Hold with two hands: one on arm, one under base", "Slide it rapidly across benches", "Carry upside down"],
+            answer: 1,
+            explanation: "Using two hands—one grasping the microscope arm and one supporting the sturdy base—prevents accidental drops and optic misalignment."
+          },
+          {
+            q: "If a laboratory procedure requires observing the odor of an unknown vapor, what is the safe method?",
+            options: ["Inhale deeply directly over the beaker", "Waft vapors gently toward your nose with your hand", "Drink a small sample", "Boil the liquid vigorously"],
+            answer: 1,
+            explanation: "The 'wafting' technique gently fans a tiny diluted amount of vapor toward your nose without exposing lungs to concentrated toxic fumes."
+          }
+        ]
+      }
+    };
+
+    /* =========================================================================
+       GLOBAL APP STATE & SESSION CONTROLLER
+       ========================================================================= */
+    const AppState = {
+      currentModule: 'welcome', // 'welcome', 'solarSystem', 'humanBody', 'scienceLab'
+      isQuizActive: false,
+      currentQuestionIdx: 0,
+      score: 0,
+      totalQuestionsAnswered: 0,
+      selectedObjectId: null,
+      isDebouncing: false,
+
+      // High-level navigation
+      setModule(modName) {
+        if (this.isDebouncing) return;
+        this.debounce();
+        SoundFX.playSwitch();
+        this.currentModule = modName;
+        this.isQuizActive = false;
+        this.currentQuestionIdx = 0;
+        this.selectedObjectId = null;
+
+        // Toggle 3D visual showcases
+        document.getElementById('showcase-solar').setAttribute('visible', modName === 'solarSystem');
+        document.getElementById('showcase-body').setAttribute('visible', modName === 'humanBody');
+        document.getElementById('showcase-lab').setAttribute('visible', modName === 'scienceLab');
+        document.getElementById('welcome-sculpture').setAttribute('visible', modName === 'welcome');
+
+        // Update In-VR Board Content
+        if (modName === 'welcome') {
+          UIBoard.renderWelcomeScreen();
+        } else {
+          UIBoard.renderModuleScreen(modName);
+        }
+
+        // Update 2D Desktop HUD
+        this.updateHUD();
+      },
+
+      startQuiz() {
+        if (this.isDebouncing || this.currentModule === 'welcome') return;
+        this.debounce();
+        SoundFX.playClick();
+        this.isQuizActive = true;
+        this.currentQuestionIdx = 0;
+        UIBoard.renderQuizScreen();
+        this.updateHUD();
+      },
+
+      answerQuiz(choiceIdx) {
+        if (this.isDebouncing || !this.isQuizActive) return;
+        this.debounce();
+        
+        const mod = Curriculum[this.currentModule];
+        const currentQ = mod.quiz[this.currentQuestionIdx];
+        const isCorrect = (choiceIdx === currentQ.answer);
+
+        if (isCorrect) {
+          SoundFX.playCorrect();
+          this.score += 10;
+        } else {
+          SoundFX.playWrong();
+        }
+        this.totalQuestionsAnswered++;
+
+        // Render Feedback on VR Board
+        UIBoard.renderQuizFeedback(isCorrect, currentQ);
+        this.updateHUD();
+      },
+
+      nextQuizQuestion() {
+        if (this.isDebouncing) return;
+        this.debounce();
+        SoundFX.playClick();
+        const mod = Curriculum[this.currentModule];
+        this.currentQuestionIdx++;
+
+        if (this.currentQuestionIdx >= mod.quiz.length) {
+          // Quiz finished for this module
+          UIBoard.renderQuizCompleteScreen();
+        } else {
+          UIBoard.renderQuizScreen();
+        }
+        this.updateHUD();
+      },
+
+      selectObject(objectId) {
+        if (this.isDebouncing) return;
+        this.debounce();
+        SoundFX.playClick();
+        this.selectedObjectId = objectId;
+        UIBoard.renderObjectDetail(this.currentModule, objectId);
+        this.updateHUD();
+      },
+
+      resetScore() {
+        SoundFX.playSwitch();
+        this.score = 0;
+        this.totalQuestionsAnswered = 0;
+        this.setModule('welcome');
+      },
+
+      debounce(ms = 280) {
+        this.isDebouncing = true;
+        setTimeout(() => { this.isDebouncing = false; }, ms);
+      },
+
+      updateHUD() {
+        const hudMod = document.getElementById('hud-module-name');
+        const hudScore = document.getElementById('hud-score-val');
+        const hudQuestions = document.getElementById('hud-questions-val');
+        if (hudMod) hudMod.textContent = this.currentModule === 'welcome' ? 'Welcome Lounge' : Curriculum[this.currentModule].title.split(':')[1].trim();
+        if (hudScore) hudScore.textContent = this.score;
+        if (hudQuestions) hudQuestions.textContent = this.totalQuestionsAnswered;
+      }
+    };
+
+    /* =========================================================================
+       VR INFORMATION BOARD RENDERER
+       ========================================================================= */
+    const UIBoard = {
+      // Primary text elements on the central interactive board
+      getEl(id) { return document.getElementById(id); },
+
+      renderWelcomeScreen() {
+        this.getEl('board-title').setAttribute('value', 'VR INTERACTIVE LEARNING ROOM');
+        this.getEl('board-subtitle').setAttribute('value', 'Welcome, Explorer! Choose an educational module below to begin.');
+        
+        // Hide quiz containers
+        this.getEl('quiz-container').setAttribute('visible', false);
+        this.getEl('object-detail-container').setAttribute('visible', false);
+        this.getEl('welcome-cards-container').setAttribute('visible', true);
+        this.getEl('module-actions-container').setAttribute('visible', false);
+
+        // Update status text
+        this.getEl('board-status-text').setAttribute('value', 'Select a module via Touch Controller raycast trigger or Desktop mouse click.');
+      },
+
+      renderModuleScreen(modKey) {
+        const mod = Curriculum[modKey];
+        this.getEl('board-title').setAttribute('value', mod.title.toUpperCase());
+        this.getEl('board-subtitle').setAttribute('value', mod.description);
+
+        this.getEl('welcome-cards-container').setAttribute('visible', false);
+        this.getEl('quiz-container').setAttribute('visible', false);
+        this.getEl('object-detail-container').setAttribute('visible', true);
+        this.getEl('module-actions-container').setAttribute('visible', true);
+
+        // Display default guidance for this module
+        const firstObj = mod.objects[0];
+        this.renderObjectDetail(modKey, firstObj.id);
+      },
+
+      renderObjectDetail(modKey, objectId) {
+        const mod = Curriculum[modKey];
+        if (!mod) return;
+        const obj = mod.objects.find(o => o.id === objectId);
+        if (!obj) return;
+
+        this.getEl('object-detail-container').setAttribute('visible', true);
+        this.getEl('obj-name').setAttribute('value', obj.name.toUpperCase());
+        this.getEl('obj-name').setAttribute('color', obj.color || '#38bdf8');
+
+        let metaText = "";
+        let bodyText = "";
+
+        if (modKey === 'solarSystem') {
+          metaText = `Position: ${obj.order}  |  Equatorial Diameter: ${obj.diameter}`;
+          bodyText = `Key Scientific Fact:\n${obj.fact}\n\nTip: Inspect the rotating 3D planets positioned in the front learning zone.`;
+        } else if (modKey === 'humanBody') {
+          metaText = `Body System: ${obj.system}  |  Primary Role: ${obj.function}`;
+          bodyText = `Physiological Details:\n${obj.fact}\n\nTip: Gaze or point at the animated 3D organs inside the holographic mannequin.`;
+        } else if (modKey === 'scienceLab') {
+          metaText = `Function: ${obj.purpose}`;
+          bodyText = `Safe Educational Laboratory Practice:\n${obj.safeUse}\n\nTip: Click the apparatus on the laboratory counter to trigger interactive demonstrations!`;
+        }
+
+        this.getEl('obj-meta').setAttribute('value', metaText);
+        this.getEl('obj-body').setAttribute('value', bodyText);
+        this.getEl('board-status-text').setAttribute('value', `Inspecting: ${obj.name}. Press 'START QUIZ' anytime to test your knowledge!`);
+      },
+
+      renderQuizScreen() {
+        const mod = Curriculum[AppState.currentModule];
+        const q = mod.quiz[AppState.currentQuestionIdx];
+
+        this.getEl('welcome-cards-container').setAttribute('visible', false);
+        this.getEl('object-detail-container').setAttribute('visible', false);
+        this.getEl('module-actions-container').setAttribute('visible', false);
+        this.getEl('quiz-container').setAttribute('visible', true);
+
+        // Question header
+        this.getEl('quiz-q-num').setAttribute('value', `QUIZ CHALLENGE - QUESTION ${AppState.currentQuestionIdx + 1} OF ${mod.quiz.length}`);
+        this.getEl('quiz-q-text').setAttribute('value', q.q);
+
+        // Setup 4 option buttons
+        const optionIds = ['opt-0', 'opt-1', 'opt-2', 'opt-3'];
+        optionIds.forEach((btnId, idx) => {
+          const btn = this.getEl(btnId);
+          const txt = this.getEl(`${btnId}-text`);
+          if (q.options[idx]) {
+            btn.setAttribute('visible', true);
+            btn.setAttribute('class', 'clickable interactive-btn');
+            btn.setAttribute('material', 'color: #1e293b; emissive: #0f172a; opacity: 0.95');
+            txt.setAttribute('value', `${String.fromCharCode(65 + idx)})  ${q.options[idx]}`);
+          } else {
+            btn.setAttribute('visible', false);
+            btn.setAttribute('class', 'non-clickable');
+          }
+        });
+
+        // Hide feedback container & Next button
+        this.getEl('quiz-feedback-container').setAttribute('visible', false);
+        this.getEl('btn-quiz-next').setAttribute('visible', false);
+        this.getEl('btn-quiz-next').setAttribute('class', 'non-clickable');
+        this.getEl('board-status-text').setAttribute('value', 'Select the best answer using your controller raycast or mouse.');
+      },
+
+      renderQuizFeedback(isCorrect, currentQ) {
+        // Disable option buttons temporarily
+        ['opt-0', 'opt-1', 'opt-2', 'opt-3'].forEach(id => {
+          this.getEl(id).setAttribute('class', 'non-clickable');
+        });
+
+        const feedbackBox = this.getEl('quiz-feedback-container');
+        const feedbackTitle = this.getEl('quiz-feedback-title');
+        const feedbackExp = this.getEl('quiz-feedback-exp');
+        const nextBtn = this.getEl('btn-quiz-next');
+
+        feedbackBox.setAttribute('visible', true);
+        if (isCorrect) {
+          feedbackTitle.setAttribute('value', 'CORRECT! (+10 POINTS)');
+          feedbackTitle.setAttribute('color', '#10b981');
+          feedbackBox.setAttribute('material', 'color: #064e3b; opacity: 0.9; stroke: #10b981');
+        } else {
+          feedbackTitle.setAttribute('value', 'INCORRECT ANSWER');
+          feedbackTitle.setAttribute('color', '#ef4444');
+          feedbackBox.setAttribute('material', 'color: #450a0a; opacity: 0.9; stroke: #ef4444');
+        }
+
+        feedbackExp.setAttribute('value', currentQ.explanation);
+        
+        // Show Next Button
+        nextBtn.setAttribute('visible', true);
+        nextBtn.setAttribute('class', 'clickable interactive-btn');
+        this.getEl('board-status-text').setAttribute('value', 'Review explanation, then click CONTINUE to proceed.');
+      },
+
+      renderQuizCompleteScreen() {
+        this.getEl('quiz-container').setAttribute('visible', false);
+        this.getEl('welcome-cards-container').setAttribute('visible', false);
+        this.getEl('object-detail-container').setAttribute('visible', true);
+        this.getEl('module-actions-container').setAttribute('visible', true);
+
+        const mod = Curriculum[AppState.currentModule];
+        this.getEl('obj-name').setAttribute('value', 'MODULE QUIZ COMPLETED!');
+        this.getEl('obj-name').setAttribute('color', '#10b981');
+        this.getEl('obj-meta').setAttribute('value', `Current Session Score: ${AppState.score} Points  |  Answered: ${AppState.totalQuestionsAnswered}`);
+        this.getEl('obj-body').setAttribute('value', `Outstanding work! You have finished all questions for ${mod.title}.\n\nYou can retake the quiz anytime to improve your score, explore the 3D models further, or return to the Main Menu to experience another module.`);
+        this.getEl('board-status-text').setAttribute('value', 'Quiz Completed! Use navigation buttons below to continue your learning journey.');
+      }
+    };
+
+    /* =========================================================================
+       CUSTOM A-FRAME INTERACTION COMPONENTS
+       ========================================================================= */
+
+    // Reusable Component for Interactive 3D Buttons (Hover & Click)
+    AFRAME.registerComponent('interactive-btn', {
+      schema: {
+        hoverColor: { type: 'color', default: '#38bdf8' },
+        defaultColor: { type: 'color', default: '#1e293b' },
+        hoverScale: { type: 'vec3', default: { x: 1.05, y: 1.05, z: 1.05 } }
+      },
+      init() {
+        const el = this.el;
+        this.originalScale = el.getAttribute('scale') || { x: 1, y: 1, z: 1 };
+        
+        el.addEventListener('mouseenter', () => {
+          if (!el.classList.contains('clickable')) return;
+          SoundFX.playHover();
+          el.setAttribute('scale', {
+            x: this.originalScale.x * this.data.hoverScale.x,
+            y: this.originalScale.y * this.data.hoverScale.y,
+            z: this.originalScale.z * this.data.hoverScale.z
+          });
+          const mat = el.getAttribute('material');
+          if (mat) {
+            el.setAttribute('material', 'emissive', this.data.hoverColor);
+            el.setAttribute('material', 'emissiveIntensity', 0.45);
+          }
+        });
+
+        el.addEventListener('mouseleave', () => {
+          el.setAttribute('scale', this.originalScale);
+          const mat = el.getAttribute('material');
+          if (mat) {
+            el.setAttribute('material', 'emissive', '#000000');
+            el.setAttribute('material', 'emissiveIntensity', 0);
+          }
+        });
+      }
+    });
+
+    // Planetary Axial Rotation Component
+    AFRAME.registerComponent('planet-rotator', {
+      schema: { speed: { type: 'number', default: 0.5 } },
+      tick(time, timeDelta) {
+        const delta = (timeDelta || 16) / 1000;
+        const currentRot = this.el.getAttribute('rotation');
+        this.el.setAttribute('rotation', {
+          x: currentRot.x,
+          y: (currentRot.y + this.data.speed * delta * 45) % 360,
+          z: currentRot.z
+        });
+      }
+    });
+
+    // Anatomical Heartbeat Pulsing Component
+    AFRAME.registerComponent('pulse-animation', {
+      schema: { minScale: { type: 'number', default: 0.94 }, maxScale: { type: 'number', default: 1.08 }, rate: { type: 'number', default: 2.2 } },
+      init() {
+        this.baseScale = this.el.getAttribute('scale') || { x: 1, y: 1, z: 1 };
+      },
+      tick(time) {
+        const t = (time / 1000) * this.data.rate * Math.PI;
+        const pulse = (Math.sin(t) + 1) / 2;
+        const cur = this.data.minScale + pulse * (this.data.maxScale - this.data.minScale);
+        this.el.setAttribute('scale', {
+          x: this.baseScale.x * cur,
+          y: this.baseScale.y * cur,
+          z: this.baseScale.z * cur
+        });
+      }
+    });
+
+    // Laboratory Reaction Interaction Component
+    AFRAME.registerComponent('lab-reaction', {
+      init() {
+        const el = this.el;
+        let colorIdx = 0;
+        const reactionColors = ['#10b981', '#a855f7', '#06b6d4', '#f59e0b', '#ec4899'];
+        
+        el.addEventListener('click', () => {
+          SoundFX.playCorrect();
+          colorIdx = (colorIdx + 1) % reactionColors.length;
+          const targetLiquid = document.getElementById('beaker-liquid');
+          if (targetLiquid) {
+            targetLiquid.setAttribute('material', 'color', reactionColors[colorIdx]);
+            targetLiquid.setAttribute('material', 'emissive', reactionColors[colorIdx]);
+            targetLiquid.setAttribute('material', 'emissiveIntensity', 0.6);
+          }
+          // Flash bubbles
+          const bubbles = document.getElementById('beaker-bubbles');
+          if (bubbles) {
+            bubbles.setAttribute('visible', true);
+            setTimeout(() => bubbles.setAttribute('visible', false), 2500);
+          }
+          AppState.selectObject('beaker');
+        });
+      }
+    });
+
+    // Bunsen Burner Flame Controller
+    AFRAME.registerComponent('burner-toggle', {
+      init() {
+        const el = this.el;
+        let isRoaring = false;
+        el.addEventListener('click', () => {
+          SoundFX.playClick();
+          isRoaring = !isRoaring;
+          const flame = document.getElementById('burner-flame');
+          const statusText = document.getElementById('burner-status-label');
+          if (flame) {
+            if (isRoaring) {
+              flame.setAttribute('material', 'color: #38bdf8; emissive: #0284c7; emissiveIntensity: 0.9');
+              flame.setAttribute('scale', '0.08 0.28 0.08');
+              if (statusText) statusText.setAttribute('value', 'Blue Roaring Flame: ~1400C (Heating)');
+            } else {
+              flame.setAttribute('material', 'color: #f59e0b; emissive: #d97706; emissiveIntensity: 0.6');
+              flame.setAttribute('scale', '0.07 0.22 0.07');
+              if (statusText) statusText.setAttribute('value', 'Yellow Safety Flame: ~300C (Idle)');
+            }
+          }
+          AppState.selectObject('burner');
+        });
+      }
+    });
+
+    // Window Load Initializer
+    window.addEventListener('DOMContentLoaded', () => {
+      const scene = document.querySelector('a-scene');
+      scene.addEventListener('loaded', () => {
+        const loader = document.getElementById('vr-loading');
+        if (loader) {
+          loader.style.opacity = '0';
+          setTimeout(() => loader.remove(), 600);
+        }
+        AppState.setModule('welcome');
+      });
+
+      // Bind Audio activation on first user interaction
+      const unlockAudio = () => {
+        SoundFX.init();
+        window.removeEventListener('pointerdown', unlockAudio);
+        window.removeEventListener('keydown', unlockAudio);
+      };
+      window.addEventListener('pointerdown', unlockAudio);
+      window.addEventListener('keydown', unlockAudio);
+    });
+  </script>
+</head>
+
+<body>
+  <!-- Custom Loading Indicator -->
+  <div id="vr-loading">
+    <div class="spinner"></div>
+    <div>INITIALIZING VR LEARNING ROOM...</div>
+  </div>
+
+  <!-- 2D Desktop HUD & Instructions Overlay -->
+  <div id="desktop-hud">
+    <div class="hud-title">
+      <span>VR LEARNING ROOM</span>
+      <span class="hud-badge" id="hud-mode-badge">WebXR Ready</span>
+    </div>
+    <div class="hud-stats">
+      <div class="stat-item">
+        <span class="stat-label">Active Module</span>
+        <span class="stat-value" id="hud-module-name" style="font-size: 13px;">Welcome Lounge</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Score</span>
+        <span class="stat-value" id="hud-score-val">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Questions</span>
+        <span class="stat-value" id="hud-questions-val">0</span>
+      </div>
+    </div>
+    <div class="hud-instructions">
+      <strong>Desktop Controls:</strong> Click & drag mouse to look around. Use <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or Arrow Keys to move. Click any button or 3D object to interact.<br>
+      <strong>Meta Quest 3S:</strong> Put on headset, click "Enter VR" button (bottom right), point Touch Plus controller ray at objects & press trigger.
+    </div>
+  </div>
+
+  <div id="quest-helper">
+    <span class="icon">🥽</span>
+    <div>
+      <strong>Meta Quest 3S Optimized</strong><br>
+      Dual 6DoF Touch Plus Controller Raycasting Supported
+    </div>
+  </div>
+
+  <!-- =======================================================================
+       A-FRAME 3D VIRTUAL REALITY SCENE
+       ======================================================================= -->
+  <a-scene 
+    embedded="false"
+    renderer="antialias: true; colorManagement: true; foveationLevel: 1"
+    background="color: #030712"
+    vr-mode-ui="enabled: true">
+
+    <!-- -------------------------------------------------------------
+         ASSETS DEFINITION (Procedural, Native & Canvas Textures)
+         ------------------------------------------------------------- -->
+    <a-assets>
+      <!-- Base reusable button mixins -->
+      <a-mixin id="btn-base" 
+               geometry="primitive: plane; width: 0.95; height: 0.28" 
+               material="color: #1e293b; emissive: #0f172a; opacity: 0.95" 
+               text="align: center; color: #ffffff; width: 2.2; font: roboto"></a-mixin>
+      <a-mixin id="module-btn" 
+               geometry="primitive: box; width: 0.85; height: 0.35; depth: 0.08" 
+               material="color: #0f172a; emissive: #0284c7; emissiveIntensity: 0.2; opacity: 0.95"></a-mixin>
+    </a-assets>
+
+    <!-- -------------------------------------------------------------
+         CAMERA RIG & INPUT CONTROLLERS (Quest 3S & Desktop Fallback)
+         ------------------------------------------------------------- -->
+    <a-entity id="rig" position="0 0 0">
+      <!-- Head Mounted Display / Desktop Camera -->
+      <a-camera id="headCamera" position="0 1.6 0" look-controls="pointerLockEnabled: false" wasd-controls="acceleration: 15">
+        <!-- Desktop Mouse & Gaze Fallback Cursor -->
+        <!-- In VR mode, laser controllers are active; in desktop mode, mouse clicking is effortless -->
+        <a-entity id="desktopCursor" 
+                  cursor="rayOrigin: mouse" 
+                  raycaster="objects: .clickable; far: 25">
+        </a-entity>
+        <!-- Reticle dot for centered visual gaze reference -->
+        <a-entity position="0 0 -1" 
+                  geometry="primitive: ring; radiusInner: 0.003; radiusOuter: 0.006" 
+                  material="color: #38bdf8; shader: flat; opacity: 0.5" 
+                  cursor="fuse: false"
+                  raycaster="objects: .clickable; far: 25">
+        </a-entity>
+      </a-camera>
+
+      <!-- Meta Quest 3S Right Touch Plus Controller (Laser Raycaster) -->
+      <a-entity id="rightHand" 
+                laser-controls="hand: right" 
+                raycaster="objects: .clickable; far: 25; lineColor: #38bdf8; lineOpacity: 0.85"
+                oculus-touch-controls="hand: right; model: true">
+      </a-entity>
+
+      <!-- Meta Quest 3S Left Touch Plus Controller (Laser Raycaster) -->
+      <a-entity id="leftHand" 
+                laser-controls="hand: left" 
+                raycaster="objects: .clickable; far: 25; lineColor: #a855f7; lineOpacity: 0.85"
+                oculus-touch-controls="hand: left; model: true">
+      </a-entity>
+    </a-entity>
+
+    <!-- -------------------------------------------------------------
+         LIGHTING & AMBIENCE (Optimized for Quest 3S Performance)
+         ------------------------------------------------------------- -->
+    <a-entity light="type: ambient; color: #94a3b8; intensity: 0.75"></a-entity>
+    <a-entity light="type: directional; color: #ffffff; intensity: 0.95; position: 3 6 4"></a-entity>
+    <!-- Soft central showcase spotlight -->
+    <a-entity light="type: spot; color: #38bdf8; intensity: 1.2; distance: 10; angle: 45; position: 0 4.5 -1.5" target="#showcase-podium"></a-entity>
+
+    <!-- -------------------------------------------------------------
+         VIRTUAL CLASSROOM ARCHITECTURE (Walls, Floor, Ceiling, Glass)
+         ------------------------------------------------------------- -->
+    <!-- Floor: Sleek dark reflective laboratory tiles -->
+    <a-plane position="0 0 0" rotation="-90 0 0" width="20" height="20" 
+             material="color: #0b1120; roughness: 0.3; metalness: 0.2"></a-plane>
+
+    <!-- Ceiling: Modern architectural ceiling grid -->
+    <a-plane position="0 4.2 0" rotation="90 0 0" width="20" height="20" 
+             material="color: #0f172a; roughness: 0.7"></a-plane>
+    <!-- Recessed ceiling light strips -->
+    <a-box position="0 4.18 -2" width="12" height="0.04" depth="0.4" material="color: #e0f2fe; emissive: #bae6fd; emissiveIntensity: 0.8"></a-box>
+    <a-box position="0 4.18 2" width="12" height="0.04" depth="0.4" material="color: #e0f2fe; emissive: #bae6fd; emissiveIntensity: 0.8"></a-box>
+
+    <!-- Back Wall (Behind User) with Panoramic Observatory Window -->
+    <a-box position="0 2.1 6" width="20" height="4.2" depth="0.3" material="color: #111827"></a-box>
+    
+    <!-- Left Wall with Decorative Tech Panels -->
+    <a-box position="-7.5 2.1 0" rotation="0 90 0" width="16" height="4.2" depth="0.3" material="color: #0f172a"></a-box>
+    <a-plane position="-7.3 2.2 0" rotation="0 90 0" width="8" height="2.2" 
+             material="color: #0284c7; emissive: #0369a1; emissiveIntensity: 0.25; opacity: 0.3"></a-plane>
+    <a-text position="-7.28 3.1 0" rotation="0 90 0" value="STEM DISCOVERY LAB" align="center" color="#38bdf8" width="8" font="roboto"></a-text>
+    <a-text position="-7.28 2.0 0" rotation="0 90 0" value="WebXR Virtual Reality System\nMeta Quest 3S Edition\nResolution: 2064x2208 per eye\nSnapdragon XR2 Gen 2 Architecture" align="center" color="#94a3b8" width="5.5" font="roboto"></a-text>
+
+    <!-- Right Wall with Laboratory Storage & Educational Posters -->
+    <a-box position="7.5 2.1 0" rotation="0 -90 0" width="16" height="4.2" depth="0.3" material="color: #0f172a"></a-box>
+    <a-plane position="7.3 2.2 0" rotation="0 -90 0" width="8" height="2.2" 
+             material="color: #475569; emissive: #1e293b; emissiveIntensity: 0.2; opacity: 0.4"></a-plane>
+    <a-text position="7.28 3.1 0" rotation="0 -90 0" value="CORE CURRICULUM" align="center" color="#f59e0b" width="8" font="roboto"></a-text>
+    <a-text position="7.28 2.0 0" rotation="0 -90 0" value="A) Planetary Physics & Astronomy\nB) Human Physiology & Organ Systems\nC) Experimental Chemistry & Lab Safety" align="center" color="#cbd5e1" width="5.5" font="roboto"></a-text>
+
+    <!-- Front Stage Base / Platform -->
+    <a-cylinder id="showcase-podium" position="0 0.15 -2.0" radius="1.8" height="0.3" 
+                material="color: #1e293b; roughness: 0.4; metalness: 0.5"></a-cylinder>
+    <!-- Glowing holographic emitter ring -->
+    <a-ring position="0 0.31 -2.0" rotation="-90 0 0" radius-inner="1.6" radius-outer="1.75" 
+            material="color: #38bdf8; emissive: #0284c7; emissiveIntensity: 0.9; shader: flat"></a-ring>
+
+    <!-- -------------------------------------------------------------
+         CENTRAL INTERACTIVE MAIN BOARD (Eye Level, High Contrast)
+         ------------------------------------------------------------- -->
+    <a-entity id="main-board-rig" position="0 2.25 -3.3" rotation="0 0 0">
+      <!-- Main Glassmorphic Display Frame -->
+      <a-box position="0 0 0" width="3.2" height="1.85" depth="0.06" 
+             material="color: #0b1329; opacity: 0.95; roughness: 0.2; metalness: 0.3"></a-box>
+      <!-- Neon Border Glow Outline -->
+      <a-entity position="0 0 0.035" 
+                geometry="primitive: plane; width: 3.16; height: 1.81" 
+                material="color: #0284c7; shader: flat; wireframe: true"></a-entity>
+
+      <!-- Header: Title & Subtitle -->
+      <a-text id="board-title" position="0 0.72 0.04" value="VR INTERACTIVE LEARNING ROOM" 
+              align="center" color="#38bdf8" width="3.4" font="roboto" letter-spacing="1"></a-text>
+      <a-text id="board-subtitle" position="0 0.54 0.04" value="Welcome, Explorer! Choose an educational module below to begin." 
+              align="center" color="#cbd5e1" width="2.4" font="roboto"></a-text>
+      <!-- Divider bar -->
+      <a-plane position="0 0.44 0.04" width="2.8" height="0.008" material="color: #0369a1; shader: flat"></a-plane>
+
+      <!-- Dynamic Status Guidance Footer -->
+      <a-plane position="0 -0.82 0.04" width="3.1" height="0.14" material="color: #070e20; opacity: 0.9"></a-plane>
+      <a-text id="board-status-text" position="0 -0.82 0.05" value="Point your controller ray at buttons and press trigger to interact." 
+              align="center" color="#94a3b8" width="2.1" font="roboto"></a-text>
+
+      <!-- =========================================================
+           VIEW 1: WELCOME SCREEN MODULE LAUNCH CARDS
+           ========================================================= -->
+      <a-entity id="welcome-cards-container" position="0 -0.08 0.04" visible="true">
+        <!-- Module A Card -->
+        <a-entity id="btn-card-solar" position="-0.95 0 0" 
+                  class="clickable interactive-btn" 
+                  interactive-btn="hoverColor: #38bdf8; defaultColor: #0f172a"
+                  onclick="AppState.setModule('solarSystem')">
+          <a-box width="0.86" height="0.65" depth="0.05" material="color: #0f172a; emissive: #0369a1; emissiveIntensity: 0.2"></a-box>
+          <a-sphere position="0 0.14 0.05" radius="0.09" material="color: #f59e0b; emissive: #d97706; emissiveIntensity: 0.7"></a-sphere>
+          <a-ring position="0 0.14 0.05" rotation="-40 0 0" radius-inner="0.11" radius-outer="0.14" material="color: #fde047; shader: flat"></a-ring>
+          <a-text value="SOLAR SYSTEM" position="0 -0.06 0.04" align="center" color="#ffffff" width="1.8" font="roboto"></a-text>
+          <a-text value="8 Planets & Sun" position="0 -0.18 0.04" align="center" color="#94a3b8" width="1.3" font="roboto"></a-text>
+        </a-entity>
+
+        <!-- Module B Card -->
+        <a-entity id="btn-card-body" position="0 0 0" 
+                  class="clickable interactive-btn" 
+                  interactive-btn="hoverColor: #ec4899; defaultColor: #0f172a"
+                  onclick="AppState.setModule('humanBody')">
+          <a-box width="0.86" height="0.65" depth="0.05" material="color: #0f172a; emissive: #831843; emissiveIntensity: 0.2"></a-box>
+          <a-sphere position="0 0.14 0.05" radius="0.08" material="color: #f43f5e; emissive: #be123c; emissiveIntensity: 0.7"></a-sphere>
+          <a-text value="HUMAN BODY" position="0 -0.06 0.04" align="center" color="#ffffff" width="1.8" font="roboto"></a-text>
+          <a-text value="Vital Organ Systems" position="0 -0.18 0.04" align="center" color="#94a3b8" width="1.3" font="roboto"></a-text>
+        </a-entity>
+
+        <!-- Module C Card -->
+        <a-entity id="btn-card-lab" position="0.95 0 0" 
+                  class="clickable interactive-btn" 
+                  interactive-btn="hoverColor: #10b981; defaultColor: #0f172a"
+                  onclick="AppState.setModule('scienceLab')">
+          <a-box width="0.86" height="0.65" depth="0.05" material="color: #0f172a; emissive: #064e3b; emissiveIntensity: 0.2"></a-box>
+          <a-cylinder position="0 0.14 0.05" radius="0.07" height="0.16" material="color: #10b981; emissive: #047857; emissiveIntensity: 0.7"></a-cylinder>
+          <a-text value="SCIENCE LAB" position="0 -0.06 0.04" align="center" color="#ffffff" width="1.8" font="roboto"></a-text>
+          <a-text value="Apparatus & Safety" position="0 -0.18 0.04" align="center" color="#94a3b8" width="1.3" font="roboto"></a-text>
+        </a-entity>
+
+        <!-- Quick Start Big Button -->
+        <a-entity id="btn-start-learning" position="0 -0.5 0" 
+                  class="clickable interactive-btn"
+                  interactive-btn="hoverColor: #10b981; defaultColor: #0284c7"
+                  onclick="AppState.setModule('solarSystem')">
+          <a-box width="1.5" height="0.22" depth="0.05" material="color: #0284c7; emissive: #0369a1; emissiveIntensity: 0.5"></a-box>
+          <a-text value="START EXPLORATION" position="0 0 0.04" align="center" color="#ffffff" width="2.2" font="roboto"></a-text>
+        </a-entity>
+      </a-entity>
+
+      <!-- =========================================================
+           VIEW 2: OBJECT DETAIL / LESSON VIEW
+           ========================================================= -->
+      <a-entity id="object-detail-container" position="0 0.02 0.04" visible="false">
+        <a-text id="obj-name" position="-1.3 0.28 0" value="OBJECT NAME" color="#38bdf8" width="2.8" font="roboto"></a-text>
+        <a-text id="obj-meta" position="-1.3 0.12 0" value="METADATA DETAILS" color="#f59e0b" width="2.1" font="roboto"></a-text>
+        <a-text id="obj-body" position="-1.3 -0.16 0" value="Detailed educational explanation will be dynamically loaded here." 
+                color="#e2e8f0" width="2.3" font="roboto" wrap-count="38"></a-text>
+      </a-entity>
+
+      <!-- =========================================================
+           VIEW 3: INTERACTIVE MULTIPLE-CHOICE QUIZ SCREEN
+           ========================================================= -->
+      <a-entity id="quiz-container" position="0 0.02 0.04" visible="false">
+        <a-text id="quiz-q-num" position="-1.3 0.32 0" value="QUESTION 1 OF 3" color="#f59e0b" width="2.2" font="roboto"></a-text>
+        <a-text id="quiz-q-text" position="-1.3 0.14 0" value="Which celestial body is known as the Red Planet?" 
+                color="#ffffff" width="2.4" font="roboto" wrap-count="34"></a-text>
+
+        <!-- Quiz 4 Option Buttons (2x2 Grid) -->
+        <a-entity id="opt-0" position="-0.7 -0.1 0" class="clickable interactive-btn" 
+                  interactive-btn="hoverColor: #38bdf8" onclick="AppState.answerQuiz(0)">
+          <a-box width="1.25" height="0.18" depth="0.04" material="color: #1e293b; emissive: #0f172a"></a-box>
+          <a-text id="opt-0-text" position="0 0 0.03" value="A) Option 1" align="center" color="#ffffff" width="1.9" font="roboto"></a-text>
+        </a-entity>
+
+        <a-entity id="opt-1" position="0.7 -0.1 0" class="clickable interactive-btn" 
+                  interactive-btn="hoverColor: #38bdf8" onclick="AppState.answerQuiz(1)">
+          <a-box width="1.25" height="0.18" depth="0.04" material="color: #1e293b; emissive: #0f172a"></a-box>
+          <a-text id="opt-1-text" position="0 0 0.03" value="B) Option 2" align="center" color="#ffffff" width="1.9" font="roboto"></a-text>
+        </a-entity>
+
+        <a-entity id="opt-2" position="-0.7 -0.32 0" class="clickable interactive-btn" 
+                  interactive-btn="hoverColor: #38bdf8" onclick="AppState.answerQuiz(2)">
+          <a-box width="1.25" height="0.18" depth="0.04" material="color: #1e293b; emissive: #0f172a"></a-box>
+          <a-text id="opt-2-text" position="0 0 0.03" value="C) Option 3" align="center" color="#ffffff" width="1.9" font="roboto"></a-text>
+        </a-entity>
+
+        <a-entity id="opt-3" position="0.7 -0.32 0" class="clickable interactive-btn" 
+                  interactive-btn="hoverColor: #38bdf8" onclick="AppState.answerQuiz(3)">
+          <a-box width="1.25" height="0.18" depth="0.04" material="color: #1e293b; emissive: #0f172a"></a-box>
+          <a-text id="opt-3-text" position="0 0 0.03" value="D) Option 4" align="center" color="#ffffff" width="1.9" font="roboto"></a-text>
+        </a-entity>
+
+        <!-- Quiz Feedback Overlay Box -->
+        <a-entity id="quiz-feedback-container" position="0 -0.18 0.06" visible="false">
+          <a-box width="2.7" height="0.48" depth="0.04" material="color: #064e3b; opacity: 0.95"></a-box>
+          <a-text id="quiz-feedback-title" position="0 0.14 0.03" value="CORRECT ANSWER! (+10 PTS)" align="center" color="#10b981" width="2.4" font="roboto"></a-text>
+          <a-text id="quiz-feedback-exp" position="0 -0.04 0.03" value="Detailed educational feedback explains why this is correct." align="center" color="#ffffff" width="2.3" font="roboto" wrap-count="40"></a-text>
+        </a-entity>
+
+        <!-- Next Question Button -->
+        <a-entity id="btn-quiz-next" position="0 -0.52 0.07" visible="false" class="clickable interactive-btn"
+                  interactive-btn="hoverColor: #10b981; defaultColor: #0284c7" onclick="AppState.nextQuizQuestion()">
+          <a-box width="1.2" height="0.18" depth="0.04" material="color: #0284c7; emissive: #0369a1"></a-box>
+          <a-text value="CONTINUE >" position="0 0 0.03" align="center" color="#ffffff" width="2.1" font="roboto"></a-text>
+        </a-entity>
+      </a-entity>
+
+      <!-- =========================================================
+           BOTTOM MODULE DOCK ACTIONS (Visible in module view)
+           ========================================================= -->
+      <a-entity id="module-actions-container" position="0 -0.58 0.04" visible="false">
+        <!-- Start Quiz Button -->
+        <a-entity id="btn-mod-start-quiz" position="-0.75 0 0" class="clickable interactive-btn"
+                  interactive-btn="hoverColor: #10b981; defaultColor: #047857" onclick="AppState.startQuiz()">
+          <a-box width="1.05" height="0.19" depth="0.04" material="color: #047857; emissive: #065f46"></a-box>
+          <a-text value="TAKE MODULE QUIZ" position="0 0 0.03" align="center" color="#ffffff" width="1.8" font="roboto"></a-text>
+        </a-entity>
+
+        <!-- Return to Main Menu -->
+        <a-entity id="btn-mod-main-menu" position="0.75 0 0" class="clickable interactive-btn"
+                  interactive-btn="hoverColor: #f59e0b; defaultColor: #334155" onclick="AppState.setModule('welcome')">
+          <a-box width="1.05" height="0.19" depth="0.04" material="color: #334155; emissive: #1e293b"></a-box>
+          <a-text value="MAIN MENU" position="0 0 0.03" align="center" color="#ffffff" width="1.8" font="roboto"></a-text>
+        </a-entity>
+      </a-entity>
+    </a-entity>
+
+    <!-- -------------------------------------------------------------
+         PERSISTENT LOWER NAVIGATION PEDESTAL BUTTONS
+         ------------------------------------------------------------- -->
+    <a-entity id="pedestal-menu" position="0 0.85 -1.25" rotation="-28 0 0">
+      <!-- Background console bar -->
+      <a-box position="0 0 0" width="1.8" height="0.22" depth="0.04" material="color: #0f172a; opacity: 0.9"></a-box>
+      
+      <!-- Module 1: Solar -->
+      <a-entity id="dock-btn-solar" position="-0.6 0 0.03" class="clickable interactive-btn"
+                interactive-btn="hoverColor: #38bdf8" onclick="AppState.setModule('solarSystem')">
+        <a-box width="0.36" height="0.14" depth="0.02" material="color: #0284c7"></a-box>
+        <a-text value="SOLAR" position="0 0 0.02" align="center" color="#ffffff" width="1.4" font="roboto"></a-text>
+      </a-entity>
+
+      <!-- Module 2: Body -->
+      <a-entity id="dock-btn-body" position="-0.2 0 0.03" class="clickable interactive-btn"
+                interactive-btn="hoverColor: #f43f5e" onclick="AppState.setModule('humanBody')">
+        <a-box width="0.36" height="0.14" depth="0.02" material="color: #be123c"></a-box>
+        <a-text value="BODY" position="0 0 0.02" align="center" color="#ffffff" width="1.4" font="roboto"></a-text>
+      </a-entity>
+
+      <!-- Module 3: Lab -->
+      <a-entity id="dock-btn-lab" position="0.2 0 0.03" class="clickable interactive-btn"
+                interactive-btn="hoverColor: #10b981" onclick="AppState.setModule('scienceLab')">
+        <a-box width="0.36" height="0.14" depth="0.02" material="color: #047857"></a-box>
+        <a-text value="LAB" position="0 0 0.02" align="center" color="#ffffff" width="1.4" font="roboto"></a-text>
+      </a-entity>
+
+      <!-- Reset / Home -->
+      <a-entity id="dock-btn-reset" position="0.6 0 0.03" class="clickable interactive-btn"
+                interactive-btn="hoverColor: #f59e0b" onclick="AppState.resetScore()">
+        <a-box width="0.36" height="0.14" depth="0.02" material="color: #b45309"></a-box>
+        <a-text value="RESET" position="0 0 0.02" align="center" color="#ffffff" width="1.4" font="roboto"></a-text>
+      </a-entity>
+    </a-entity>
+
+    <!-- -------------------------------------------------------------
+         WELCOME LOBBY FLOATING HOLOGRAPHIC LOGO SCULPTURE
+         ------------------------------------------------------------- -->
+    <a-entity id="welcome-sculpture" position="0 1.4 -2.0" visible="true">
+      <a-torus radius="0.45" radius-tubular="0.015" material="color: #38bdf8; emissive: #0284c7; emissiveIntensity: 0.6; wireframe: true"
+               animation="property: rotation; to: 360 360 0; loop: true; dur: 18000; easing: linear"></a-torus>
+      <a-torus radius="0.32" radius-tubular="0.012" material="color: #a855f7; emissive: #7e22ce; emissiveIntensity: 0.6; wireframe: true"
+               animation="property: rotation; to: 0 -360 360; loop: true; dur: 14000; easing: linear"></a-torus>
+      <a-octahedron radius="0.16" material="color: #f59e0b; emissive: #d97706; emissiveIntensity: 0.8"
+                    animation="property: rotation; to: 360 0 360; loop: true; dur: 9000; easing: linear"></a-octahedron>
+    </a-entity>
+
+    <!-- -------------------------------------------------------------
+         3D SHOWCASE A: SOLAR SYSTEM INTERACTIVE ORRERY
+         ------------------------------------------------------------- -->
+    <a-entity id="showcase-solar" position="0 1.3 -2.0" visible="false">
+      <!-- Central Glowing Sun -->
+      <a-sphere id="planet-sun" class="clickable interactive-btn" position="0 0 0" radius="0.22" 
+                material="color: #f59e0b; emissive: #fbbf24; emissiveIntensity: 1; roughness: 0.2"
+                planet-rotator="speed: 0.2"
+                interactive-btn="hoverColor: #fde047"
+                onclick="AppState.selectObject('sun')">
+        <a-text value="SUN" position="0 0.32 0" align="center" color="#fef08a" width="1.4" font="roboto"></a-text>
+      </a-sphere>
+
+      <!-- 8 Planets Arranged in an Elegant Semicircular Horizon Arc -->
+      <!-- Mercury -->
+      <a-entity id="planet-mercury" class="clickable interactive-btn" position="-1.3 0 0.3" 
+                interactive-btn="hoverColor: #ffffff" onclick="AppState.selectObject('mercury')">
+        <a-sphere radius="0.04" material="color: #9ca3af; roughness: 0.9" planet-rotator="speed: 0.9"></a-sphere>
+        <a-text value="Mercury" position="0 0.1 0" align="center" color="#cbd5e1" width="0.9" font="roboto"></a-text>
+      </a-entity>
+
+      <!-- Venus -->
+      <a-entity id="planet-venus" class="clickable interactive-btn" position="-0.95 0 0.1" 
+                interactive-btn="hoverColor: #fde047" onclick="AppState.selectObject('venus')">
+        <a-sphere radius="0.06" material="color: #eab308; roughness: 0.5" planet-rotator="speed: 0.6"></a-sphere>
+        <a-text value="Venus" position="0 0.12 0" align="center" color="#fef08a" width="0.9" font="roboto"></a-text>
+      </a-entity>
+
+      <!-- Earth (with subtle Moon) -->
+      <a-entity id="planet-earth" class="clickable interactive-btn" position="-0.6 0 -0.05" 
+                interactive-btn="hoverColor: #38bdf8" onclick="AppState.selectObject('earth')">
+        <a-sphere radius="0.065" material="color: #0284c7; emissive: #0369a1; emissiveIntensity: 0.3; roughness: 0.4" planet-rotator="speed: 0.8"></a-sphere>
+        <!-- Orbiting Mini Moon -->
+        <a-sphere position="0.1 0.04 0" radius="0.015" material="color: #e2e8f0"></a-sphere>
+        <a-text value="Earth" position="0 0.13 0" align="center" color="#67e8f9" width="0.9" font="roboto"></a-text>
+      </a-entity>
+
+      <!-- Mars -->
+      <a-entity id="planet-mars" class="clickable interactive-btn" position="-0.28 0 -0.15" 
+                interactive-btn="hoverColor: #f87171" onclick="AppState.selectObject('mars')">
+        <a-sphere radius="0.05" material="color: #ef4444; roughness: 0.7" planet-rotator="speed: 0.75"></a-sphere>
+        <a-text value="Mars" position="0 0.11 0" align="center" color="#fca5a5" width="0.9" font="roboto"></a-text>
+      </a-entity>
+
+      <!-- Jupiter -->
+      <a-entity id="planet-jupiter" class="clickable interactive-btn" position="0.32 0 -0.15" 
+                interactive-btn="hoverColor: #fbbf24" onclick="AppState.selectObject('jupiter')">
+        <a-sphere radius="0.12" material="color: #d97706; roughness: 0.6" planet-rotator="speed: 1.4"></a-sphere>
+        <!-- Atmospheric band detail -->
+        <a-ring radius-inner="0.121" radius-outer="0.125" rotation="90 0 0" material="color: #78350f; shader: flat"></a-ring>
+        <a-text value="Jupiter" position="0 0.18 0" align="center" color="#fcd34d" width="1.1" font="roboto"></a-text>
+      </a-entity>
+
+      <!-- Saturn (with stylized Rings) -->
+      <a-entity id="planet-saturn" class="clickable interactive-btn" position="0.68 0 -0.05" 
+                interactive-btn="hoverColor: #fef08a" onclick="AppState.selectObject('saturn')">
+        <a-sphere radius="0.09" material="color: #eab308; roughness: 0.5" planet-rotator="speed: 1.2"></a-sphere>
+        <a-ring radius-inner="0.13" radius-outer="0.21" rotation="65 25 0" material="color: #fef08a; side: double; opacity: 0.85"></a-ring>
+        <a-text value="Saturn" position="0 0.16 0" align="center" color="#fef9c3" width="1.1" font="roboto"></a-text>
+      </a-entity>
+
+      <!-- Uranus -->
+      <a-entity id="planet-uranus" class="clickable interactive-btn" position="1.05 0 0.12" 
+                interactive-btn="hoverColor: #67e8f9" onclick="AppState.selectObject('uranus')">
+        <a-sphere radius="0.07" material="color: #22d3ee; roughness: 0.4" planet-rotator="speed: 0.5"></a-sphere>
+        <a-ring radius-inner="0.09" radius-outer="0.11" rotation="10 85 0" material="color: #a5f3fc; side: double; opacity: 0.7"></a-ring>
+        <a-text value="Uranus" position="0 0.13 0" align="center" color="#a5f3fc" width="0.9" font="roboto"></a-text>
+      </a-entity>
+
+      <!-- Neptune -->
+      <a-entity id="planet-neptune" class="clickable interactive-btn" position="1.38 0 0.35" 
+                interactive-btn="hoverColor: #60a5fa" onclick="AppState.selectObject('neptune')">
+        <a-sphere radius="0.068" material="color: #3b82f6; roughness: 0.4" planet-rotator="speed: 0.48"></a-sphere>
+        <a-text value="Neptune" position="0 0.13 0" align="center" color="#93c5fd" width="0.9" font="roboto"></a-text>
+      </a-entity>
+    </a-entity>
+
+    <!-- -------------------------------------------------------------
+         3D SHOWCASE B: HUMAN ANATOMY EDUCATIONAL MODEL
+         ------------------------------------------------------------- -->
+    <a-entity id="showcase-body" position="0 1.2 -1.8" visible="false">
+      <!-- Clean, Non-Graphic Holographic Mannequin Silhouette -->
+      <a-entity position="0 0 0">
+        <!-- Head -->
+        <a-sphere position="0 0.65 0" radius="0.14" material="color: #38bdf8; opacity: 0.22; wireframe: true"></a-sphere>
+        <!-- Torso -->
+        <a-cylinder position="0 0.18 0" radius="0.22" height="0.65" material="color: #38bdf8; opacity: 0.18; wireframe: true"></a-cylinder>
+        <!-- Shoulders / Arms hint -->
+        <a-box position="-0.28 0.4 0" width="0.12" height="0.45" depth="0.12" material="color: #38bdf8; opacity: 0.15; wireframe: true"></a-box>
+        <a-box position="0.28 0.4 0" width="0.12" height="0.45" depth="0.12" material="color: #38bdf8; opacity: 0.15; wireframe: true"></a-box>
+      </a-entity>
+
+      <!-- Organ 1: Brain (Inside Cranium) -->
+      <a-entity id="organ-brain" class="clickable interactive-btn" position="0 0.66 0" 
+                interactive-btn="hoverColor: #f472b6" onclick="AppState.selectObject('brain')">
+        <a-sphere radius="0.09" material="color: #ec4899; emissive: #db2777; emissiveIntensity: 0.4; roughness: 0.6"></a-sphere>
+        <!-- Brain Hemisphere Divider -->
+        <a-box width="0.01" height="0.16" depth="0.16" material="color: #9d174d"></a-box>
+        <a-text value="Brain" position="0 0.15 0" align="center" color="#fbcfe8" width="1.1" font="roboto"></a-text>
+      </a-entity>
+
+      <!-- Organ 2: Heart (Left-Center Chest with Real-Time Pulse) -->
+      <a-entity id="organ-heart" class="clickable interactive-btn" position="0.05 0.32 0.04" 
+                pulse-animation="minScale: 0.94; maxScale: 1.12; rate: 2.2"
+                interactive-btn="hoverColor: #ef4444" onclick="AppState.selectObject('heart')">
+        <a-sphere radius="0.06" material="color: #ef4444; emissive: #b91c1c; emissiveIntensity: 0.5"></a-sphere>
+        <!-- Aorta arch -->
+        <a-torus position="0 0.05 0" radius="0.025" radius-tubular="0.008" rotation="0 0 90" material="color: #f87171"></a-torus>
+        <a-text value="Heart" position="0 0.12 0" align="center" color="#fca5a5" width="1.1" font="roboto"></a-text>
+      </a-entity>
+
+      <!-- Organ 3: Lungs (Respiratory System, Dual Lobes) -->
+      <a-entity id="organ-lungs" class="clickable interactive-btn" position="0 0.3 0" 
+                pulse-animation="minScale: 0.96; maxScale: 1.04; rate: 0.9"
+                interactive-btn="hoverColor: #38bdf8" onclick="AppState.selectObject('lungs')">
+        <!-- Left Lung Lobe -->
+        <a-sphere position="-0.1 0 0.02" radius="0.065" scale="0.8 1.4 0.7" material="color: #38bdf8; emissive: #0284c7; emissiveIntensity: 0.3"></a-sphere>
+        <!-- Right Lung Lobe -->
+        <a-sphere position="0.1 0 0.02" radius="0.065" scale="0.8 1.4 0.7" material="color: #38bdf8; emissive: #0284c7; emissiveIntensity: 0.3"></a-sphere>
+        <!-- Trachea (Windpipe) -->
+        <a-cylinder position="0 0.12 0.02" radius="0.015" height="0.1" material="color: #93c5fd"></a-cylinder>
+        <a-text value="Lungs" position="-0.16 0.12 0" align="center" color="#bae6fd" width="1.0" font="roboto"></a-text>
+      </a-entity>
+
+      <!-- Organ 4: Stomach (Upper Abdomen) -->
+      <a-entity id="organ-stomach" class="clickable interactive-btn" position="-0.04 0.06 0.04" 
+                interactive-btn="hoverColor: #fb923c" onclick="AppState.selectObject('stomach')">
+        <a-sphere radius="0.055" scale="1.3 0.9 0.9" rotation="0 0 -25" material="color: #ea580c; emissive: #c2410c; emissiveIntensity: 0.4"></a-sphere>
+        <a-text value="Stomach" position="0 -0.11 0" align="center" color="#fed7aa" width="1.0" font="roboto"></a-text>
+      </a-entity>
+    </a-entity>
+
+    <!-- -------------------------------------------------------------
+         3D SHOWCASE C: SCIENCE LABORATORY BENCH & APPARATUS
+         ------------------------------------------------------------- -->
+    <a-entity id="showcase-lab" position="0 0.9 -1.8" visible="false">
+      <!-- Laboratory Workbench -->
+      <a-box position="0 0 0" width="2.2" height="0.08" depth="0.8" material="color: #1e293b; roughness: 0.3; metalness: 0.6"></a-box>
+      <a-box position="-0.95 -0.42 0" width="0.08" height="0.78" depth="0.7" material="color: #0f172a"></a-box>
+      <a-box position="0.95 -0.42 0" width="0.08" height="0.78" depth="0.7" material="color: #0f172a"></a-box>
+
+      <!-- Apparatus 1: Compound Microscope -->
+      <a-entity id="tool-microscope" class="clickable interactive-btn" position="-0.65 0.18 0.05" 
+                interactive-btn="hoverColor: #38bdf8" onclick="AppState.selectObject('microscope')">
+        <!-- Heavy base -->
+        <a-box position="0 0 0" width="0.22" height="0.04" depth="0.2" material="color: #0f172a"></a-box>
+        <!-- Curved arm -->
+        <a-cylinder position="0 0.16 -0.06" radius="0.02" height="0.28" rotation="15 0 0" material="color: #0284c7"></a-cylinder>
+        <!-- Eyepiece tube -->
+        <a-cylinder position="0 0.32 0" radius="0.02" height="0.14" rotation="-30 0 0" material="color: #e2e8f0"></a-cylinder>
+        <!-- Objective lens nosepiece -->
+        <a-cylinder position="0 0.14 0" radius="0.035" height="0.04" material="color: #f59e0b"></a-cylinder>
+        <!-- Stage -->
+        <a-box position="0 0.1 0" width="0.16" height="0.015" depth="0.14" material="color: #1e293b"></a-box>
+        <a-text value="Microscope" position="0 0.44 0" align="center" color="#bae6fd" width="1.1" font="roboto"></a-text>
+      </a-entity>
+
+      <!-- Apparatus 2: Interactive Chemical Reaction Beaker & Flask -->
+      <a-entity id="tool-beaker" class="clickable interactive-btn" position="-0.15 0.16 0.05" 
+                lab-reaction interactive-btn="hoverColor: #10b981">
+        <!-- Glass beaker cylinder -->
+        <a-cylinder radius="0.09" height="0.22" material="color: #e0f2fe; opacity: 0.38; roughness: 0.1; metalness: 0.1"></a-cylinder>
+        <!-- Dynamic colored liquid inside -->
+        <a-cylinder id="beaker-liquid" position="0 -0.04 0" radius="0.088" height="0.13" 
+                    material="color: #10b981; emissive: #047857; emissiveIntensity: 0.5"></a-cylinder>
+        <!-- Reactive Bubbling Effect -->
+        <a-entity id="beaker-bubbles" position="0 0.05 0" visible="false">
+          <a-sphere position="-0.03 0 0.02" radius="0.015" material="color: #ffffff; opacity: 0.7"></a-sphere>
+          <a-sphere position="0.02 0.02 -0.01" radius="0.02" material="color: #ffffff; opacity: 0.7"></a-sphere>
+          <a-sphere position="0 0.04 0.03" radius="0.012" material="color: #ffffff; opacity: 0.7"></a-sphere>
+        </a-entity>
+        <a-text value="Reaction Beaker\n(Click to Mix)" position="0 0.22 0" align="center" color="#a7f3d0" width="1.0" font="roboto"></a-text>
+      </a-entity>
+
+      <!-- Apparatus 3: Convex Magnifying Glass -->
+      <a-entity id="tool-magnifier" class="clickable interactive-btn" position="0.32 0.12 0.05" 
+                interactive-btn="hoverColor: #f59e0b" onclick="AppState.selectObject('magnifier')">
+        <!-- Rim -->
+        <a-torus position="0 0.08 0" radius="0.08" radius-tubular="0.008" material="color: #f59e0b"></a-torus>
+        <!-- Optical glass lens -->
+        <a-cylinder position="0 0.08 0" rotation="90 0 0" radius="0.078" height="0.005" material="color: #e0f2fe; opacity: 0.55; roughness: 0.1"></a-cylinder>
+        <!-- Wooden/metal handle -->
+        <a-cylinder position="0 -0.04 0" radius="0.012" height="0.14" material="color: #78350f"></a-cylinder>
+        <a-text value="Magnifier" position="0 0.23 0" align="center" color="#fef08a" width="1.1" font="roboto"></a-text>
+      </a-entity>
+
+      <!-- Apparatus 4: Interactive Bunsen Burner -->
+      <a-entity id="tool-burner" class="clickable interactive-btn" position="0.75 0.14 0.05" 
+                burner-toggle interactive-btn="hoverColor: #ec4899">
+        <!-- Cast iron base -->
+        <a-cylinder radius="0.08" height="0.025" material="color: #0f172a"></a-cylinder>
+        <!-- Vertical chimney tube -->
+        <a-cylinder position="0 0.1 0" radius="0.016" height="0.18" material="color: #94a3b8; metalness: 0.8"></a-cylinder>
+        <!-- Interactive Air Collar -->
+        <a-cylinder position="0 0.04 0" radius="0.02" height="0.03" material="color: #f59e0b"></a-cylinder>
+        <!-- Dynamic Flame Cone -->
+        <a-cone id="burner-flame" position="0 0.28 0" radius-bottom="0.035" height="0.2" 
+                material="color: #38bdf8; emissive: #0284c7; emissiveIntensity: 0.8; opacity: 0.9"
+                scale="0.08 0.28 0.08"></a-cone>
+        <a-text id="burner-status-label" value="Bunsen Burner\n(Click to Adjust)" position="0 0.44 0" align="center" color="#fed7aa" width="0.9" font="roboto"></a-text>
+      </a-entity>
+    </a-entity>
+
+    <!-- -------------------------------------------------------------
+         PANORAMIC ENVIRONMENT SKY & PROCEDURAL SPACE AMBIENCE
+         ------------------------------------------------------------- -->
+    <!-- Deep Cosmic Gradient Skybox -->
+    <a-sky color="#030712"></a-sky>
+
+    <!-- Floating Starfield Particles for Visual Immersion -->
+    <a-entity position="0 3 0">
+      <a-sphere position="4 1 -6" radius="0.03" material="color: #ffffff; emissive: #ffffff; shader: flat"></a-sphere>
+      <a-sphere position="-5 3 -5" radius="0.04" material="color: #38bdf8; emissive: #38bdf8; shader: flat"></a-sphere>
+      <a-sphere position="2 4 -8" radius="0.02" material="color: #f59e0b; emissive: #f59e0b; shader: flat"></a-sphere>
+      <a-sphere position="-3 2 -7" radius="0.035" material="color: #ffffff; emissive: #ffffff; shader: flat"></a-sphere>
+      <a-sphere position="6 5 -4" radius="0.025" material="color: #a855f7; emissive: #a855f7; shader: flat"></a-sphere>
+      <a-sphere position="-7 4 -3" radius="0.03" material="color: #ffffff; emissive: #ffffff; shader: flat"></a-sphere>
+      <a-sphere position="0 6 -9" radius="0.05" material="color: #67e8f9; emissive: #67e8f9; shader: flat"></a-sphere>
+    </a-entity>
+  </a-scene>
+</body>
+</html>
